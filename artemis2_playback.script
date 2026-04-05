@@ -1,20 +1,18 @@
 %----------------------------------------------------------------------
 %  Artemis II Free-Return Lunar Mission - Playback Script
 %
-%  Multi-TLI mission profile:
+%  Single-TLI free-return mission profile:
 %
-%  T+0:00    Launch from KSC LC-39B
-%  T+0:50    ICPS Perigee Raise to 185 km parking orbit (not shown)
-%  T+1:50    ICPS Apogee Raise Burn (ARB) to high elliptical orbit
-%  T+13:00   ESM Perigee Raise at apogee
-%  T+25:00   ESM Trans-Lunar Injection (TLI) at perigee
-%  ~Day 5    Lunar far-side flyby at ~4,800 km altitude
-%  ~Day 10   Earth reentry at ~11 km/s, Pacific splashdown
+%  T+0:00    Launch from KSC LC-39B into 185 km parking orbit
+%  T+1:00    Trans-Lunar Injection (TLI) burn (~3.15 km/s)
+%  ~Day 4    Lunar far-side flyby at ~4,800 km altitude
+%  ~Day 8    Earth reentry at ~11 km/s, Pacific splashdown
 %
-%  Note: This uses the converged trajectory solution (RAAN, AOP, total dV)
-%  with the delta-V split into ARB + TLI to show the multi-TLI profile.
+%  This script uses the converged trajectory solution from
+%  artemis2_freereturn.script (RAAN, AOP, TLI delta-V) to replay
+%  the final trajectory with full visualization and no solver iterations.
 %
-%  Launch: 07 Mar 2026 01:29 UTC (targeting March 2026 window)
+%  Launch epoch: 08 Feb 2026 18:00 UTC (pre-flight planning window)
 %----------------------------------------------------------------------
 
 %----------------------------------------
@@ -23,14 +21,14 @@
 
 Create Spacecraft Orion;
 GMAT Orion.DateFormat = UTCGregorian;
-GMAT Orion.Epoch = '07 Mar 2026 01:29:00.000';
+GMAT Orion.Epoch = '08 Feb 2026 18:00:00.000';
 GMAT Orion.CoordinateSystem = EarthMJ2000Eq;
 GMAT Orion.DisplayStateType = Keplerian;
 GMAT Orion.SMA = 6563.137;
 GMAT Orion.ECC = 0.001;
 GMAT Orion.INC = 28.5;
-GMAT Orion.RAAN = 7.02874771237;
-GMAT Orion.AOP = 86.5976872544;
+GMAT Orion.RAAN = 7.028747712373755;
+GMAT Orion.AOP = 86.59768725442427;
 GMAT Orion.TA = 0.0;
 GMAT Orion.DryMass = 26500;
 GMAT Orion.Cd = 2.2;
@@ -100,34 +98,13 @@ GMAT MoonFull.StopIfAccuracyIsViolated = true;
 %---------- Burns
 %----------------------------------------
 
-% ICPS Apogee Raise Burn (ARB) - creates high elliptical orbit
-% ~78% of total delta-V, raises apogee to ~74,000 km
-Create ImpulsiveBurn ARB;
-GMAT ARB.CoordinateSystem = Local;
-GMAT ARB.Origin = Earth;
-GMAT ARB.Axes = VNB;
-GMAT ARB.Element1 = 2.46;
-GMAT ARB.Element2 = 0;
-GMAT ARB.Element3 = 0;
-GMAT ARB.DecrementMass = false;
-
-% ESM Perigee Raise Burn - small burn at apogee
-Create ImpulsiveBurn PeriRaise;
-GMAT PeriRaise.CoordinateSystem = Local;
-GMAT PeriRaise.Origin = Earth;
-GMAT PeriRaise.Axes = VNB;
-GMAT PeriRaise.Element1 = 0.01;
-GMAT PeriRaise.Element2 = 0;
-GMAT PeriRaise.Element3 = 0;
-GMAT PeriRaise.DecrementMass = false;
-
-% ESM Trans-Lunar Injection (TLI) - remaining delta-V at perigee
-% Total: 2.46 + 0.01 + 0.6785 = 3.1485 km/s (matches converged solution)
+% Trans-Lunar Injection (TLI) - single impulsive burn
+% Converged value from artemis2_freereturn.script differential corrector
 Create ImpulsiveBurn TLI;
 GMAT TLI.CoordinateSystem = Local;
 GMAT TLI.Origin = Earth;
 GMAT TLI.Axes = VNB;
-GMAT TLI.Element1 = 0.6785103648;
+GMAT TLI.Element1 = 3.148510364802601;
 GMAT TLI.Element2 = 0;
 GMAT TLI.Element3 = 0;
 GMAT TLI.DecrementMass = false;
@@ -235,7 +212,7 @@ GMAT TrajectoryReport.WriteReport = true;
 %----------------------------------------
 
 Create Variable PeriluneAlt PeriluneRMAG ReturnPerigeeAlt;
-Create Variable MissionDays EntrySpeed_kmps HighOrbitApogee;
+Create Variable MissionDays EntrySpeed_kmps;
 
 %**************************************************************************
 %************************* Mission Sequence *******************************
@@ -245,53 +222,22 @@ BeginMissionSequence;
 
 %----------------------------------------------------------------------
 % Phase 1: 185 km Parking Orbit Coast (~1 hour)
-% Post-ascent systems checkout before ARB
+% Post-ascent systems checkout before TLI
 %----------------------------------------------------------------------
 Report TrajectoryReport Orion.UTCGregorian Orion.EarthMJ2000Eq.X Orion.EarthMJ2000Eq.Y Orion.EarthMJ2000Eq.Z Orion.EarthMJ2000Eq.VX Orion.EarthMJ2000Eq.VY Orion.EarthMJ2000Eq.VZ Orion.Earth.RMAG Orion.Luna.RMAG;
 
 Propagate 'Parking Orbit Coast' EarthFull(Orion) {Orion.ElapsedSecs = 3600};
 
 %----------------------------------------------------------------------
-% Phase 2: ICPS Apogee Raise Burn (ARB) - T+1:50
-% Creates high elliptical orbit (~74,000 km apogee, ~24-hour period)
+% Phase 2: Trans-Lunar Injection (TLI)
+% Single impulsive burn of ~3.15 km/s
 %----------------------------------------------------------------------
-Maneuver 'ICPS ARB' ARB(Orion);
+Maneuver 'TLI Burn' TLI(Orion);
 
 Report TrajectoryReport Orion.UTCGregorian Orion.EarthMJ2000Eq.X Orion.EarthMJ2000Eq.Y Orion.EarthMJ2000Eq.Z Orion.EarthMJ2000Eq.VX Orion.EarthMJ2000Eq.VY Orion.EarthMJ2000Eq.VZ Orion.Earth.RMAG Orion.Luna.RMAG;
 
 %----------------------------------------------------------------------
-% Phase 3: High Elliptical Orbit - coast to apogee (~12 hours)
-% Crew performs spacecraft checkout and ICPS proximity operations
-%----------------------------------------------------------------------
-Propagate 'Coast to Apogee' EarthFull(Orion) {Orion.Earth.Apoapsis};
-
-GMAT HighOrbitApogee = Orion.Earth.RMAG - 6378.137;
-Report TrajectoryReport Orion.UTCGregorian Orion.EarthMJ2000Eq.X Orion.EarthMJ2000Eq.Y Orion.EarthMJ2000Eq.Z Orion.EarthMJ2000Eq.VX Orion.EarthMJ2000Eq.VY Orion.EarthMJ2000Eq.VZ Orion.Earth.RMAG Orion.Luna.RMAG;
-
-%----------------------------------------------------------------------
-% Phase 4: ESM Perigee Raise Burn - T+13:00
-% Small burn at apogee to raise perigee for safe TLI
-%----------------------------------------------------------------------
-Maneuver 'ESM Perigee Raise' PeriRaise(Orion);
-
-%----------------------------------------------------------------------
-% Phase 5: Coast to perigee (~12 hours)
-% Final preparations for TLI
-%----------------------------------------------------------------------
-Propagate 'Coast to Perigee' EarthFull(Orion) {Orion.Earth.Periapsis};
-
-Report TrajectoryReport Orion.UTCGregorian Orion.EarthMJ2000Eq.X Orion.EarthMJ2000Eq.Y Orion.EarthMJ2000Eq.Z Orion.EarthMJ2000Eq.VX Orion.EarthMJ2000Eq.VY Orion.EarthMJ2000Eq.VZ Orion.Earth.RMAG Orion.Luna.RMAG;
-
-%----------------------------------------------------------------------
-% Phase 6: ESM Trans-Lunar Injection (TLI) - T+25:00
-% ESM main engine completes transfer to lunar trajectory
-%----------------------------------------------------------------------
-Maneuver 'ESM TLI' TLI(Orion);
-
-Report TrajectoryReport Orion.UTCGregorian Orion.EarthMJ2000Eq.X Orion.EarthMJ2000Eq.Y Orion.EarthMJ2000Eq.Z Orion.EarthMJ2000Eq.VX Orion.EarthMJ2000Eq.VY Orion.EarthMJ2000Eq.VZ Orion.Earth.RMAG Orion.Luna.RMAG;
-
-%----------------------------------------------------------------------
-% Phase 7: Trans-lunar coast (~4 days)
+% Phase 3: Trans-lunar coast (~4 days)
 %----------------------------------------------------------------------
 Propagate 'Coast to Moon' EarthFull(Orion) {Orion.Luna.Periapsis, Orion.ElapsedDays = 6, Orion.Luna.RMAG = 1000};
 
@@ -301,14 +247,14 @@ GMAT PeriluneAlt = PeriluneRMAG - 1737.4;
 Report TrajectoryReport Orion.UTCGregorian Orion.EarthMJ2000Eq.X Orion.EarthMJ2000Eq.Y Orion.EarthMJ2000Eq.Z Orion.EarthMJ2000Eq.VX Orion.EarthMJ2000Eq.VY Orion.EarthMJ2000Eq.VZ Orion.Earth.RMAG Orion.Luna.RMAG;
 
 %----------------------------------------------------------------------
-% Phase 8: Depart lunar vicinity (free-return trajectory)
+% Phase 4: Depart lunar vicinity (free-return trajectory)
 %----------------------------------------------------------------------
 Propagate 'Depart Moon' MoonFull(Orion) {Orion.Luna.RMAG = 50000};
 
 Report TrajectoryReport Orion.UTCGregorian Orion.EarthMJ2000Eq.X Orion.EarthMJ2000Eq.Y Orion.EarthMJ2000Eq.Z Orion.EarthMJ2000Eq.VX Orion.EarthMJ2000Eq.VY Orion.EarthMJ2000Eq.VZ Orion.Earth.RMAG Orion.Luna.RMAG;
 
 %----------------------------------------------------------------------
-% Phase 9: Return to Earth (~4-5 days)
+% Phase 5: Return to Earth (~4 days)
 %----------------------------------------------------------------------
 Propagate 'Return to Earth' EarthFull(Orion) {Orion.Earth.Periapsis, Orion.ElapsedDays = 12};
 
