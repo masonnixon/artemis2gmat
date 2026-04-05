@@ -1,0 +1,363 @@
+%----------------------------------------------------------------------
+%  Artemis II Free-Return Lunar Mission Simulation
+%
+%  Simulates the Artemis II mission profile:
+%  - Launch from KSC into 185 km parking orbit (28.5 deg inclination)
+%  - Trans-Lunar Injection (TLI) burn by ICPS
+%  - Lunar flyby at ~4800 km altitude (far side)
+%  - Free-return trajectory back to Earth
+%  - ~10 day total mission duration
+%
+%  Launch date: 08 Feb 2026
+%----------------------------------------------------------------------
+
+%----------------------------------------
+%---------- Spacecraft
+%----------------------------------------
+
+Create Spacecraft Orion;
+GMAT Orion.DateFormat = UTCGregorian;
+GMAT Orion.Epoch = '08 Feb 2026 18:00:00.000';
+GMAT Orion.CoordinateSystem = EarthMJ2000Eq;
+GMAT Orion.DisplayStateType = Keplerian;
+GMAT Orion.SMA = 6563.137;
+GMAT Orion.ECC = 0.001;
+GMAT Orion.INC = 28.5;
+GMAT Orion.RAAN = 30.0;
+GMAT Orion.AOP = 0.0;
+GMAT Orion.TA = 0.0;
+GMAT Orion.DryMass = 26500;
+GMAT Orion.Cd = 2.2;
+GMAT Orion.Cr = 1.8;
+GMAT Orion.DragArea = 20;
+GMAT Orion.SRPArea = 22;
+
+% Copy for re-initialization after coarse targeting
+Create Spacecraft OrionInit;
+GMAT OrionInit.DateFormat = UTCGregorian;
+GMAT OrionInit.Epoch = '08 Feb 2026 18:00:00.000';
+GMAT OrionInit.CoordinateSystem = EarthMJ2000Eq;
+GMAT OrionInit.DisplayStateType = Keplerian;
+GMAT OrionInit.SMA = 6563.137;
+GMAT OrionInit.ECC = 0.001;
+GMAT OrionInit.INC = 28.5;
+GMAT OrionInit.RAAN = 30.0;
+GMAT OrionInit.AOP = 0.0;
+GMAT OrionInit.TA = 0.0;
+GMAT OrionInit.DryMass = 26500;
+GMAT OrionInit.Cd = 2.2;
+GMAT OrionInit.Cr = 1.8;
+GMAT OrionInit.DragArea = 20;
+GMAT OrionInit.SRPArea = 22;
+
+%----------------------------------------
+%---------- Force Models
+%----------------------------------------
+
+Create ForceModel EarthFull_ForceModel;
+GMAT EarthFull_ForceModel.CentralBody = Earth;
+GMAT EarthFull_ForceModel.PrimaryBodies = {Earth};
+GMAT EarthFull_ForceModel.PointMasses = {Sun, Luna, Venus, Mars, Jupiter};
+GMAT EarthFull_ForceModel.SRP = On;
+GMAT EarthFull_ForceModel.RelativisticCorrection = Off;
+GMAT EarthFull_ForceModel.ErrorControl = RSSStep;
+GMAT EarthFull_ForceModel.GravityField.Earth.Degree = 10;
+GMAT EarthFull_ForceModel.GravityField.Earth.Order = 10;
+GMAT EarthFull_ForceModel.GravityField.Earth.PotentialFile = 'JGM2.cof';
+GMAT EarthFull_ForceModel.Drag = None;
+GMAT EarthFull_ForceModel.SRP.Flux = 1367;
+GMAT EarthFull_ForceModel.SRP.SRPModel = Spherical;
+GMAT EarthFull_ForceModel.SRP.Nominal_Sun = 149597870.691;
+
+Create ForceModel MoonFull_ForceModel;
+GMAT MoonFull_ForceModel.CentralBody = Luna;
+GMAT MoonFull_ForceModel.PrimaryBodies = {Luna};
+GMAT MoonFull_ForceModel.PointMasses = {Sun, Earth, Jupiter};
+GMAT MoonFull_ForceModel.Drag = None;
+GMAT MoonFull_ForceModel.SRP = On;
+GMAT MoonFull_ForceModel.RelativisticCorrection = Off;
+GMAT MoonFull_ForceModel.ErrorControl = RSSStep;
+GMAT MoonFull_ForceModel.GravityField.Luna.Degree = 10;
+GMAT MoonFull_ForceModel.GravityField.Luna.Order = 10;
+GMAT MoonFull_ForceModel.GravityField.Luna.PotentialFile = 'LP165P.cof';
+GMAT MoonFull_ForceModel.SRP.Flux = 1367;
+GMAT MoonFull_ForceModel.SRP.SRPModel = Spherical;
+GMAT MoonFull_ForceModel.SRP.Nominal_Sun = 149597870.691;
+
+Create ForceModel EarthPointMass_ForceModel;
+GMAT EarthPointMass_ForceModel.CentralBody = Earth;
+GMAT EarthPointMass_ForceModel.PointMasses = {Earth};
+GMAT EarthPointMass_ForceModel.Drag = None;
+GMAT EarthPointMass_ForceModel.SRP = Off;
+GMAT EarthPointMass_ForceModel.RelativisticCorrection = Off;
+GMAT EarthPointMass_ForceModel.ErrorControl = RSSStep;
+
+%----------------------------------------
+%---------- Propagators
+%----------------------------------------
+
+Create Propagator EarthFull;
+GMAT EarthFull.FM = EarthFull_ForceModel;
+GMAT EarthFull.Type = RungeKutta89;
+GMAT EarthFull.InitialStepSize = 60;
+GMAT EarthFull.Accuracy = 1e-012;
+GMAT EarthFull.MinStep = 0.001;
+GMAT EarthFull.MaxStep = 86400;
+GMAT EarthFull.MaxStepAttempts = 50;
+GMAT EarthFull.StopIfAccuracyIsViolated = true;
+
+Create Propagator MoonFull;
+GMAT MoonFull.FM = MoonFull_ForceModel;
+GMAT MoonFull.Type = RungeKutta89;
+GMAT MoonFull.InitialStepSize = 60;
+GMAT MoonFull.Accuracy = 1e-012;
+GMAT MoonFull.MinStep = 0.001;
+GMAT MoonFull.MaxStep = 15000;
+GMAT MoonFull.MaxStepAttempts = 50;
+GMAT MoonFull.StopIfAccuracyIsViolated = true;
+
+Create Propagator EarthPointMass;
+GMAT EarthPointMass.FM = EarthPointMass_ForceModel;
+GMAT EarthPointMass.Type = RungeKutta89;
+GMAT EarthPointMass.InitialStepSize = 60;
+GMAT EarthPointMass.Accuracy = 1e-012;
+GMAT EarthPointMass.MinStep = 0.001;
+GMAT EarthPointMass.MaxStep = 2700;
+GMAT EarthPointMass.MaxStepAttempts = 50;
+GMAT EarthPointMass.StopIfAccuracyIsViolated = true;
+
+%----------------------------------------
+%---------- Burns
+%----------------------------------------
+
+% Trans-Lunar Injection (TLI) - performed by ICPS
+Create ImpulsiveBurn TLI;
+GMAT TLI.CoordinateSystem = Local;
+GMAT TLI.Origin = Earth;
+GMAT TLI.Axes = VNB;
+GMAT TLI.Element1 = 3.15;
+GMAT TLI.Element2 = 0;
+GMAT TLI.Element3 = 0;
+GMAT TLI.DecrementMass = false;
+GMAT TLI.Isp = 300;
+GMAT TLI.GravitationalAccel = 9.81;
+
+%----------------------------------------
+%---------- Coordinate Systems
+%----------------------------------------
+
+Create CoordinateSystem MoonMJ2000Eq;
+GMAT MoonMJ2000Eq.Origin = Luna;
+GMAT MoonMJ2000Eq.Axes = MJ2000Eq;
+
+Create CoordinateSystem MoonInertial;
+GMAT MoonInertial.Origin = Luna;
+GMAT MoonInertial.Axes = BodyInertial;
+
+Create CoordinateSystem EarthMoonRot;
+GMAT EarthMoonRot.Origin = Earth;
+GMAT EarthMoonRot.Axes = ObjectReferenced;
+GMAT EarthMoonRot.XAxis = R;
+GMAT EarthMoonRot.ZAxis = N;
+GMAT EarthMoonRot.Primary = Earth;
+GMAT EarthMoonRot.Secondary = Luna;
+
+%----------------------------------------
+%---------- Solvers
+%----------------------------------------
+
+Create DifferentialCorrector DC1;
+GMAT DC1.ShowProgress = true;
+GMAT DC1.ReportStyle = Normal;
+GMAT DC1.ReportFile = './DC1_Report.data';
+GMAT DC1.MaximumIterations = 200;
+GMAT DC1.DerivativeMethod = ForwardDifference;
+
+%----------------------------------------
+%---------- Subscribers
+%----------------------------------------
+
+Create OrbitView EarthView;
+GMAT EarthView.SolverIterations = Current;
+GMAT EarthView.UpperLeft = [ 0.0 0.0 ];
+GMAT EarthView.Size = [ 0.5 0.5 ];
+GMAT EarthView.Add = {Orion, Earth, Luna};
+GMAT EarthView.CoordinateSystem = EarthMJ2000Eq;
+GMAT EarthView.DrawObject = [ true true true ];
+GMAT EarthView.DataCollectFrequency = 1;
+GMAT EarthView.UpdatePlotFrequency = 50;
+GMAT EarthView.NumPointsToRedraw = 0;
+GMAT EarthView.ShowPlot = true;
+GMAT EarthView.ViewPointReference = Earth;
+GMAT EarthView.ViewPointVector = [ 0 0 600000 ];
+GMAT EarthView.ViewDirection = Earth;
+GMAT EarthView.ViewScaleFactor = 1;
+GMAT EarthView.ViewUpCoordinateSystem = EarthMJ2000Eq;
+GMAT EarthView.ViewUpAxis = Z;
+
+Create OrbitView MoonCloseUp;
+GMAT MoonCloseUp.SolverIterations = Current;
+GMAT MoonCloseUp.UpperLeft = [ 0.5 0.0 ];
+GMAT MoonCloseUp.Size = [ 0.5 0.5 ];
+GMAT MoonCloseUp.Add = {Orion, Luna, Earth};
+GMAT MoonCloseUp.CoordinateSystem = MoonMJ2000Eq;
+GMAT MoonCloseUp.DrawObject = [ true true true ];
+GMAT MoonCloseUp.DataCollectFrequency = 1;
+GMAT MoonCloseUp.UpdatePlotFrequency = 50;
+GMAT MoonCloseUp.NumPointsToRedraw = 0;
+GMAT MoonCloseUp.ShowPlot = true;
+GMAT MoonCloseUp.ViewPointReference = Luna;
+GMAT MoonCloseUp.ViewPointVector = [ 20000 20000 20000 ];
+GMAT MoonCloseUp.ViewDirection = Luna;
+GMAT MoonCloseUp.ViewScaleFactor = 1.5;
+GMAT MoonCloseUp.ViewUpCoordinateSystem = MoonMJ2000Eq;
+GMAT MoonCloseUp.ViewUpAxis = Z;
+
+Create OrbitView EarthMoonRotView;
+GMAT EarthMoonRotView.SolverIterations = Current;
+GMAT EarthMoonRotView.UpperLeft = [ 0.0 0.5 ];
+GMAT EarthMoonRotView.Size = [ 0.5 0.5 ];
+GMAT EarthMoonRotView.Add = {Orion, Earth, Luna};
+GMAT EarthMoonRotView.CoordinateSystem = EarthMoonRot;
+GMAT EarthMoonRotView.DrawObject = [ true true true ];
+GMAT EarthMoonRotView.DataCollectFrequency = 1;
+GMAT EarthMoonRotView.UpdatePlotFrequency = 50;
+GMAT EarthMoonRotView.NumPointsToRedraw = 0;
+GMAT EarthMoonRotView.ShowPlot = true;
+GMAT EarthMoonRotView.ViewPointReference = Earth;
+GMAT EarthMoonRotView.ViewPointVector = [ 10000 0 600000 ];
+GMAT EarthMoonRotView.ViewDirection = Earth;
+GMAT EarthMoonRotView.ViewScaleFactor = 1;
+GMAT EarthMoonRotView.ViewUpCoordinateSystem = EarthMoonRot;
+GMAT EarthMoonRotView.ViewUpAxis = Z;
+
+Create XYPlot EarthDistancePlot;
+GMAT EarthDistancePlot.SolverIterations = None;
+GMAT EarthDistancePlot.UpperLeft = [ 0.5 0.5 ];
+GMAT EarthDistancePlot.Size = [ 0.5 0.5 ];
+GMAT EarthDistancePlot.XVariable = Orion.A1ModJulian;
+GMAT EarthDistancePlot.YVariables = {Orion.Earth.RMAG};
+GMAT EarthDistancePlot.ShowGrid = true;
+GMAT EarthDistancePlot.ShowPlot = true;
+
+Create ReportFile TrajectoryReport;
+GMAT TrajectoryReport.Filename = './artemis2_trajectory.csv';
+GMAT TrajectoryReport.Precision = 16;
+GMAT TrajectoryReport.WriteHeaders = true;
+GMAT TrajectoryReport.LeftJustify = On;
+GMAT TrajectoryReport.ZeroFill = Off;
+GMAT TrajectoryReport.FixedWidth = false;
+GMAT TrajectoryReport.Delimiter = ',';
+GMAT TrajectoryReport.ColumnWidth = 20;
+GMAT TrajectoryReport.WriteReport = true;
+
+Create ReportFile MissionSummary;
+GMAT MissionSummary.Filename = './artemis2_summary.txt';
+GMAT MissionSummary.Precision = 6;
+GMAT MissionSummary.WriteHeaders = false;
+GMAT MissionSummary.LeftJustify = On;
+GMAT MissionSummary.ZeroFill = Off;
+GMAT MissionSummary.FixedWidth = true;
+GMAT MissionSummary.Delimiter = ' ';
+GMAT MissionSummary.ColumnWidth = 20;
+GMAT MissionSummary.WriteReport = true;
+
+%----------------------------------------
+%---------- Arrays, Variables, Strings
+%----------------------------------------
+
+Create Variable RAAN AOP TLI_dV;
+Create Variable PeriluneAlt PeriluneRMAG ReturnPerigeeAlt;
+Create Variable MissionDays EntrySpeed_kmps;
+Create String PeriluneEpoch;
+
+%**************************************************************************
+%************************* Mission Sequence *******************************
+%**************************************************************************
+
+BeginMissionSequence;
+
+% Save initial state
+GMAT OrionInit = Orion;
+
+%----------------------------------------------------------------------
+% Phase 0: Report initial conditions
+%----------------------------------------------------------------------
+Report MissionSummary Orion.UTCGregorian;
+
+%----------------------------------------------------------------------
+% Phase 1: Coarse targeting - align line of apsides with Moon
+%----------------------------------------------------------------------
+Toggle MoonCloseUp EarthView Off;
+
+Target 'Coarse Lunar Target' DC1 {SolveMode = Solve, ExitMode = SaveAndContinue};
+
+   Vary 'Vary RAAN' DC1(Orion.RAAN = 30.0, {Perturbation = 0.00001, MaxStep = 5});
+   Vary 'Vary AOP' DC1(Orion.AOP = 0.0, {Perturbation = 0.00001, MaxStep = 5});
+
+   Maneuver 'Apply TLI' TLI(Orion);
+
+   % Save for fine targeting
+   GMAT RAAN = Orion.RAAN;
+   GMAT AOP = Orion.AOP;
+
+   % Propagate to apoapsis (near Moon) using point mass for robustness
+   Propagate 'Prop to Apoapsis' EarthPointMass(Orion) {Orion.Earth.Apoapsis, Orion.ElapsedDays = 5};
+
+   % Constrain apoapsis direction toward Moon
+   Achieve 'RA = 0' DC1(Orion.EarthMoonRot.RA = 0, {Tolerance = 1});
+   Achieve 'DEC = 0' DC1(Orion.EarthMoonRot.DEC = 0, {Tolerance = 1});
+
+EndTarget;
+
+%----------------------------------------------------------------------
+% Phase 2: Fine targeting - achieve desired perilune and free-return
+%----------------------------------------------------------------------
+GMAT Orion = OrionInit;
+Toggle MoonCloseUp EarthView On;
+
+Target 'Fine Free-Return Target' DC1 {SolveMode = Solve, ExitMode = SaveAndContinue};
+
+   % Vary parking orbit geometry and TLI magnitude
+   Vary 'Vary RAAN' DC1(Orion.RAAN = RAAN, {Perturbation = 0.000001, MaxStep = 2});
+   Vary 'Vary AOP' DC1(Orion.AOP = AOP, {Perturbation = 0.000001, MaxStep = 2});
+   Vary 'Vary TLI.V' DC1(TLI.Element1 = TLI.Element1, {Perturbation = 0.0000001, MaxStep = 0.01});
+
+   % Apply TLI burn
+   Maneuver 'Apply TLI' TLI(Orion);
+
+   % Propagate to lunar vicinity
+   Propagate 'Prop to Moon' EarthFull(Orion) {Orion.Luna.Periapsis, Orion.ElapsedDays = 6, Orion.Luna.RMAG = 1000};
+
+   % Target perilune altitude of ~6537 km from Moon center (4800 km alt + 1737 km Moon radius)
+   Achieve 'Achieve Perilune' DC1(Orion.Luna.RMAG = 6537, {Tolerance = 50});
+
+   % Save perilune conditions before continuing
+   GMAT PeriluneRMAG = Orion.Luna.RMAG;
+   GMAT PeriluneAlt = PeriluneRMAG - 1737.4;
+
+   % Propagate past Moon and back toward Earth
+   Propagate 'Prop from Moon' MoonFull(Orion) {Orion.Luna.RMAG = 50000};
+   Propagate 'Prop Return' EarthFull(Orion) {Orion.Earth.Periapsis, Orion.ElapsedDays = 12};
+
+   % Constrain return perigee to ~60 km altitude (entry interface) = 6438 km from center
+   Achieve 'Achieve Return Perigee' DC1(Orion.Earth.RMAG = 6438, {Tolerance = 100});
+
+EndTarget;
+
+%----------------------------------------------------------------------
+% Phase 3: Report perilune conditions (saved from inside target loop)
+%----------------------------------------------------------------------
+Report MissionSummary PeriluneRMAG PeriluneAlt;
+
+%----------------------------------------------------------------------
+% Phase 4: Report return/reentry conditions (Orion is at Earth periapsis)
+%----------------------------------------------------------------------
+GMAT ReturnPerigeeAlt = Orion.Earth.RMAG - 6378.137;
+GMAT EntrySpeed_kmps = Orion.EarthMJ2000Eq.VMAG;
+GMAT MissionDays = Orion.ElapsedDays;
+
+Report MissionSummary Orion.UTCGregorian ReturnPerigeeAlt EntrySpeed_kmps MissionDays;
+
+% Report final trajectory point
+Report TrajectoryReport Orion.UTCGregorian Orion.EarthMJ2000Eq.X Orion.EarthMJ2000Eq.Y Orion.EarthMJ2000Eq.Z Orion.EarthMJ2000Eq.VX Orion.EarthMJ2000Eq.VY Orion.EarthMJ2000Eq.VZ Orion.Earth.RMAG Orion.Luna.RMAG;
